@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحدي الصورة المخفية</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Rubik', 'sans-serif'],
+                    },
+                    colors: {
+                        blue: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+                        pink: { 50: '#fdf2f8', 100: '#fce7f3', 200: '#fbcfe8', 300: '#f9a8d4', 400: '#f472b6', 500: '#ec4899', 600: '#db2777', 700: '#be185d', 800: '#9d174d', 900: '#831843' },
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Rubik', sans-serif;
+            background-color: #E0F7FA;
+            overflow-x: hidden;
+            user-select: none;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounce { 0%, 100% { transform: translateY(-10%); } 50% { transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .bounce { animation: bounce 2s infinite; }
+        .pulse { animation: pulse 2s infinite; }
+
+        /* Grid Square Transitions */
+        .grid-square {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            width: 100%;
+            height: 100%;
+            border-radius: 0 !important; /* Force sharp corners for full coverage */
+        }
+        
+        /* When revealed, shrink to 0 to show image underneath */
+        .grid-square.revealed {
+            opacity: 0;
+            transform: scale(0);
+            pointer-events: none;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .modal-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-content {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: scale(0.8) translateY(20px);
+        }
+        .modal-overlay.open .modal-content {
+            transform: scale(1) translateY(0);
+        }
+    </style>
+</head>
+<body class="text-slate-800 selection:bg-yellow-200">
+
+    <!-- App Container -->
+    <div id="app" class="min-h-screen relative">
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="flex flex-col items-center justify-center min-h-screen p-4 relative overflow-hidden">
+            <!-- Background Decorations -->
+            <div class="absolute top-10 left-10 text-yellow-400 opacity-50 bounce delay-700">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </div>
+            <div class="absolute bottom-20 right-20 text-pink-400 opacity-50 pulse">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            </div>
+
+            <div class="bg-white/80 backdrop-blur-lg p-8 md:p-12 rounded-[3rem] shadow-2xl w-full max-w-2xl border-4 border-white relative z-10 fade-in">
+                <h1 class="text-5xl md:text-7xl font-black text-center mb-12 text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 drop-shadow-sm">
+                    تحدي الصورة المخفية
+                </h1>
+                
+                <div class="space-y-6">
+                    <div class="group">
+                        <label class="block text-lg font-bold text-blue-600 mb-2 mr-2">اسم الفريق الأول (الأزرق)</label>
+                        <input type="text" id="team1-input" class="w-full px-6 py-4 rounded-full bg-blue-50 border-2 border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-200 outline-none transition-all text-xl text-blue-900 placeholder-blue-300 shadow-inner" placeholder="أبطال الكنيسة...">
+                    </div>
+                    <div class="group">
+                        <label class="block text-lg font-bold text-pink-600 mb-2 mr-2">اسم الفريق الثاني (الأحمر)</label>
+                        <input type="text" id="team2-input" class="w-full px-6 py-4 rounded-full bg-pink-50 border-2 border-pink-200 focus:border-pink-500 focus:ring-4 focus:ring-pink-200 outline-none transition-all text-xl text-pink-900 placeholder-pink-300 shadow-inner" placeholder="فرسان الإيمان...">
+                    </div>
+                    
+                    <button onclick="startGame()" class="w-full py-5 mt-8 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full font-black text-2xl text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all border-b-4 border-orange-600 active:border-b-0 active:translate-y-1">
+                        ابدأ المغامرة! 🚀
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen (Hidden by default) -->
+        <div id="game-screen" class="hidden flex-col h-screen overflow-hidden bg-gradient-to-b from-blue-50 to-purple-50">
+            <!-- Header -->
+            <header class="bg-white/80 backdrop-blur-md p-4 flex justify-between items-center shadow-sm border-b border-slate-100 z-20">
+                <h2 class="text-2xl font-black text-slate-700 flex items-center gap-2">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#FACC15" class="text-yellow-400"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    تحدي الصورة المخفية
+                </h2>
+                <button onclick="resetGame()" class="px-6 py-2 bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 rounded-full font-bold transition-colors border-2 border-slate-200 hover:border-red-200">
+                    خروج
+                </button>
+            </header>
+
+            <!-- Main Content -->
+            <div class="flex-1 flex flex-col md:flex-row relative overflow-y-auto md:overflow-hidden">
+                
+                <!-- Team 1 Section -->
+                <div id="team1-section" class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-blue-50/50 relative transition-colors duration-500">
+                    <div class="mb-8 text-center px-8 py-4 rounded-3xl border-b-4 shadow-lg w-full max-w-md bg-white border-blue-200 text-blue-800 shadow-blue-100">
+                        <h3 id="team1-name-display" class="text-3xl font-black mb-2">الفريق الأول</h3>
+                        <div class="text-lg font-bold opacity-70">تم كشف <span id="team1-score">0</span> من 9</div>
+                    </div>
+                    
+                    <!-- Game Board Wrapper -->
+                    <div class="relative w-full max-w-[450px] aspect-square rounded-3xl overflow-hidden shadow-2xl border-8 border-white bg-slate-200 ring-4 ring-black/5">
+                        <!-- The Hidden Image -->
+                        <img src="https://e.top4top.io/p_3711ui6de1.jpg" class="absolute inset-0 w-full h-full object-cover" alt="Team 1">
+                        
+                        <!-- The Grid Overlay (Solid Cover) -->
+                        <div id="team1-grid" class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-0">
+                            <!-- Buttons injected by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="hidden md:flex w-2 bg-slate-200 relative z-10 items-center justify-center">
+                    <div class="bg-white p-3 rounded-full border-4 border-slate-100 shadow-lg">
+                        <span class="text-2xl font-black text-slate-300">VS</span>
+                    </div>
+                </div>
+
+                <!-- Team 2 Section -->
+                <div id="team2-section" class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-pink-50/50 relative transition-colors duration-500">
+                    <div class="mb-8 text-center px-8 py-4 rounded-3xl border-b-4 shadow-lg w-full max-w-md bg-white border-pink-200 text-pink-800 shadow-pink-100">
+                        <h3 id="team2-name-display" class="text-3xl font-black mb-2">الفريق الثاني</h3>
+                        <div class="text-lg font-bold opacity-70">تم كشف <span id="team2-score">0</span> من 9</div>
+                    </div>
+                    
+                    <!-- Game Board Wrapper -->
+                    <div class="relative w-full max-w-[450px] aspect-square rounded-3xl overflow-hidden shadow-2xl border-8 border-white bg-slate-200 ring-4 ring-black/5">
+                        <!-- The Hidden Image -->
+                        <img src="https://g.top4top.io/p_3711qj7c61.jpg" class="absolute inset-0 w-full h-full object-cover" alt="Team 2">
+                        
+                        <!-- The Grid Overlay (Solid Cover) -->
+                        <div id="team2-grid" class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-0">
+                            <!-- Buttons injected by JS -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Question Modal -->
+        <div id="question-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div class="modal-content bg-white rounded-[2rem] p-6 md:p-10 max-w-3xl w-full shadow-2xl relative overflow-hidden border-8 border-white ring-4 ring-yellow-200">
+                <div id="modal-header-bar" class="absolute top-0 left-0 w-full h-4 bg-blue-400"></div>
+                
+                <div class="mb-8 text-center relative z-10">
+                    <span id="modal-team-badge" class="inline-block px-4 py-2 rounded-full text-lg font-bold mb-6 bg-blue-100 text-blue-600">
+                        سؤال للفريق
+                    </span>
+                    <h3 id="modal-question-text" class="text-2xl md:text-4xl font-black text-slate-800 leading-relaxed">
+                        نص السؤال هنا؟
+                    </h3>
+                </div>
+
+                <div id="modal-options" class="grid grid-cols-1 gap-4">
+                    <!-- Options injected by JS -->
+                </div>
+
+                <button onclick="closeModal()" class="absolute top-6 left-6 p-2 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Winner Modal -->
+        <div id="winner-modal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <div class="modal-content bg-white p-12 rounded-[3rem] text-center space-y-8 max-w-2xl w-full shadow-2xl border-8 border-yellow-400 relative">
+                <div class="absolute -top-16 left-1/2 -translate-x-1/2 bg-yellow-400 p-6 rounded-full border-8 border-white shadow-xl">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="white"><path d="M6 2L3 6v2h2v12h14V8h2V6l-3-4H6zm2 4h8v2H8V6zm2 4h4v8h-4v-8z"/></svg>
+                </div>
+                
+                <div class="pt-8">
+                    <h2 class="text-6xl font-black text-yellow-500 mb-4">مبروك!</h2>
+                    <div class="text-3xl text-slate-600 font-bold">
+                        الفائز هو فريق <br/>
+                        <span id="winner-name" class="text-6xl font-black mt-6 block text-blue-500">اسم الفريق</span>
+                    </div>
+                </div>
+
+                <button onclick="resetGame()" class="px-10 py-4 bg-slate-900 text-white font-bold rounded-full text-xl hover:scale-105 transition-transform shadow-xl hover:shadow-2xl">
+                    لعب مرة أخرى 🔄
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Game Logic -->
+    <script>
+        // --- Data ---
+        const questionsPool = [
+            { q: "ما هو الأصل اللغوي لكلمة 'ليتروجية' ومعناها الدقيق؟", options: ["كلمة يونانية تعني عمل شعبي", "كلمة سريانية تعني التقديس", "كلمة قبطية تعني صلاة الكاهن", "كلمة عبرية تعني ذبيحة الشكر"], correct: 0 },
+            { q: "تعتبر كلمة 'قداس' من أصل سرياني، فماذا تعني هذه الكلمة؟", options: ["الاجتماع العام", "التسبيح المستمر", "الصعود", "التقديس"], correct: 3 },
+            { q: "ما المقصود بـ 'تقديس المكان' في طقس القداس؟", options: ["أن المكان يسع جميع المصلين", "أن المكان يُبنى على الطراز القبطي", "أن المكان يصير كنيسة", "أن المكان يتزين بالصور والأيقونات"], correct: 2 },
+            { q: "كلمة 'أنافورا' تتكون من مقطعين، فما معناهما؟", options: ["كسر الخبز", "تقديم الشكر", "صعود إلى فوق", "نزول الروح القدس"], correct: 2 },
+            { q: "لماذا سمي سر التناول بـ 'إفخارستيا'؟", options: ["لأن الفعل الرئيسي هو الشكر", "لأنها تشير إلى غسل الخطايا", "لأنها تعني الاجتماع المقدس", "لأنها ترمز إلى انتصار المسيح"], correct: 0 },
+            { q: "ماذا ميز 'المرحلة الأولى' للقداس (قبل مجمع نيقية)؟", options: ["كان الأسقف يصلي بإلهام الروح القدس", "كان هناك كتاب واحد موحد", "كانت الصلوات تقرأ من لفائف سريانية", "كان يمنع استخدام أي صلوات"], correct: 0 },
+            { q: "ما السبب الرئيسي لتدوين النص وتثبيته في المرحلة الثانية؟", options: ["ضياع النسخ الشفهية", "رغبة الملوك في توحيد اللغات", "طلب الرسل تدوينها", "بسبب ظهور الهرطقات المختلفة"], correct: 3 },
+            { q: "ما هي الأفعال الأربعة الأساسية للإفخارستيا حسب الإنجيل؟", options: ["التقديم، الشكر، القسمة، التناول", "الصوم، الصلاة، السجود، الاعتراف", "التعميد، الميرون، الزواج، القداس", "القراءة، الوعظ، التسبيح، الصدقة"], correct: 0 },
+            { q: "من صاحب السلطة الوحيد في تعديل أي طقس في الكنيسة القبطية؟", options: ["لجنة الشمامسة", "الشعب بالتصويت", "قداسة البابا والمجمع المقدس", "كل كاهن حسب رؤيته"], correct: 2 },
+            { q: "كم عدد كتب 'القطمارس' التي تستخدمها الكنيسة القبطية؟", options: ["كتاب واحد كبير", "12 كتاباً", "5 كتب", "3 كتب"], correct: 2 },
+            { q: "ما هو رمز 'الاسباديكون' الموجود في وسط القربانة؟", options: ["يرمز للسيدة العذراء", "يرمز للـ 12 تلميذاً", "يرمز للسيد المسيح", "يرمز للكنيسة الجامعة"], correct: 2 },
+            { q: "تحتوي القربانة على 12 صليباً، فإلى ماذا يرمز العدد؟", options: ["أسباط إسرائيل", "شهور السنة", "الآباء الرسل", "ساعات النهار"], correct: 2 },
+            { q: "توجد 5 ثقوب في القربانة، فما هي الإشارة التي تحملها؟", options: ["جراحات المسيح", "المدن الخمس", "أسفار موسى", "الحواس الخمس"], correct: 0 },
+            { q: "ما عدد مرات قول 'كيرياليسون' في تقديم الحمل؟", options: ["3 مرات", "12 مرة", "100 مرة", "41 مرة"], correct: 3 },
+            { q: "متى يُرتل لحن (نى صافيف تيرو)؟", options: ["في أيام الأحاد", "عند حضور البطريرك أو الأسقف", "في كل قداس سنوي", "عند تذكار السيدة العذراء"], correct: 1 },
+            { q: "ما معنى لحن 'أللي القربان'؟", options: ["يُقال أثناء رش المياه", "لوداع الحمل", "مقدمة للمزامير ولحن تقديم الحمل", "مديح للقديسين"], correct: 2 },
+            { q: "ما هي أول خطوة في ترتيب القداس الحالية؟", options: ["تسبحة نصف الليل", "رفع بخور باكر", "تقديم الحمل", "صلاة الغروب وصلاة النوم"], correct: 3 },
+            { q: "ما المقصود بـ 'قداس الكلمة'؟", options: ["الجزء التعليمي الذي يتضمن القراءات", "لحن قبل الدورة", "وقت صلاة القسمة", "الصلاة السرية فوق الكأس"], correct: 0 },
+            { q: "ما الرد الذي يقوله الشعب بعد الإنجيل القبطي؟", options: ["آمين كيرياليسون", "ذكساسى كيريى", "واحد هو الآب القدوس", "هلليلويا"], correct: 1 },
+            { q: "متى يُصلى لحن (طاى شورى)؟", options: ["أيام الأصوام فقط", "صوم نينوى فقط", "أيام الإفطار والسبوت والآحاد بالصوم الكبير", "عيد الصليب فقط"], correct: 2 },
+            { q: "ما هو 'البرلكس' في الطقس الكنسي؟", options: ["صلاة سرية", "كلمة تعني 'جملة مقابل جملة'", "نوع بخور", "قراءة من أعمال الرسل"], correct: 1 },
+            { q: "في أي مناسبة تصلى أوشية المرضى والمسافرين؟", options: ["كجزء من صلوات القداس", "صلاة الجناز", "تدشين المعمودية", "زيارة البيوت"], correct: 0 },
+            { q: "ماذا تعني كلمة 'كاهن' في الترجمة اليونانية؟", options: ["البار", "خادم المائدة", "ناظر من فوق", "شفيع أو وسيط بين الله والناس"], correct: 3 }
+        ];
+
+        // --- State ---
+        let gameState = {
+            team1Name: '',
+            team2Name: '',
+            team1Revealed: [],
+            team2Revealed: [],
+            team1Questions: [],
+            team2Questions: [],
+            activeQuestion: null
+        };
+
+        // --- Utils ---
+        function shuffle(array) {
+            return [...array].sort(() => Math.random() - 0.5);
+        }
+
+        // --- Game Logic ---
+        function startGame() {
+            const t1Name = document.getElementById('team1-input').value.trim();
+            const t2Name = document.getElementById('team2-input').value.trim();
+
+            if (!t1Name || !t2Name) {
+                alert("الرجاء إدخال أسماء الفريقين");
+                return;
+            }
+
+            // Setup State
+            gameState.team1Name = t1Name;
+            gameState.team2Name = t2Name;
+            
+            // Distribute Questions
+            const shuffled = shuffle(questionsPool);
+            gameState.team1Questions = shuffled.slice(0, 9);
+            gameState.team2Questions = shuffled.slice(9, 18);
+            
+            // Update UI
+            document.getElementById('team1-name-display').textContent = t1Name;
+            document.getElementById('team2-name-display').textContent = t2Name;
+            
+            // Switch Screens
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('game-screen').classList.add('flex');
+
+            // Render Grids
+            renderGrid('team1');
+            renderGrid('team2');
+        }
+
+        function renderGrid(team) {
+            const gridEl = document.getElementById(`${team}-grid`);
+            gridEl.innerHTML = ''; // Clear
+            
+            const revealed = team === 'team1' ? gameState.team1Revealed : gameState.team2Revealed;
+            const colorClass = team === 'team1' ? 'bg-blue-500 hover:bg-blue-600 border-blue-300' : 'bg-pink-500 hover:bg-pink-600 border-pink-300';
+
+            for (let i = 0; i < 9; i++) {
+                const btn = document.createElement('button');
+                const isRevealed = revealed.includes(i);
+                
+                // Note: gap-0 is on the parent grid. 
+                // We use w-full h-full to fill the cell completely.
+                // border-white/20 adds a subtle grid line without gaps.
+                btn.className = `grid-square relative flex items-center justify-center text-white font-black text-4xl border-[1px] border-white/20 z-10 ${isRevealed ? 'revealed' : 'cursor-pointer'} ${colorClass}`;
+                btn.innerHTML = `<span class="drop-shadow-md">${i + 1}</span>`;
+                btn.onclick = () => handleSquareClick(team, i);
+                
+                gridEl.appendChild(btn);
+            }
+
+            // Update Score
+            document.getElementById(`${team}-score`).textContent = revealed.length;
+        }
+
+        function handleSquareClick(team, index) {
+            const revealed = team === 'team1' ? gameState.team1Revealed : gameState.team2Revealed;
+            if (revealed.includes(index)) return;
+
+            const question = team === 'team1' ? gameState.team1Questions[index] : gameState.team2Questions[index];
+            
+            gameState.activeQuestion = {
+                team,
+                index,
+                data: question
+            };
+
+            openModal();
+        }
+
+        function openModal() {
+            const { team, data } = gameState.activeQuestion;
+            const teamName = team === 'team1' ? gameState.team1Name : gameState.team2Name;
+            const isBlue = team === 'team1';
+
+            // Style Modal
+            const headerBar = document.getElementById('modal-header-bar');
+            const badge = document.getElementById('modal-team-badge');
+            const modalContent = document.querySelector('#question-modal .modal-content');
+
+            // Reset ring color
+            modalContent.className = `modal-content bg-white rounded-[2rem] p-6 md:p-10 max-w-3xl w-full shadow-2xl relative overflow-hidden border-8 border-white ring-4 ${isBlue ? 'ring-blue-200' : 'ring-pink-200'}`;
+            
+            headerBar.className = `absolute top-0 left-0 w-full h-4 ${isBlue ? 'bg-blue-400' : 'bg-pink-400'}`;
+            badge.className = `inline-block px-4 py-2 rounded-full text-lg font-bold mb-6 ${isBlue ? 'bg-blue-100 text-blue-600' : 'bg-pink-100 text-pink-600'}`;
+            badge.textContent = `سؤال لـ ${teamName}`;
+
+            document.getElementById('modal-question-text').textContent = data.q;
+
+            // Render Options
+            const optionsContainer = document.getElementById('modal-options');
+            optionsContainer.innerHTML = '';
+            
+            data.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "p-5 bg-slate-50 hover:bg-yellow-50 border-2 border-slate-200 hover:border-yellow-400 rounded-2xl text-xl font-bold text-slate-700 hover:text-yellow-700 transition-all text-right group flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-1";
+                btn.innerHTML = `
+                    <span class="flex items-center gap-4">
+                        <span class="w-8 h-8 rounded-full bg-slate-200 group-hover:bg-yellow-200 flex items-center justify-center text-sm font-black text-slate-500 group-hover:text-yellow-700">${idx + 1}</span>
+                        ${opt}
+                    </span>
+                    <span class="opacity-0 group-hover:opacity-100 text-yellow-500 transition-opacity">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                    </span>
+                `;
+                btn.onclick = () => handleAnswer(idx);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('question-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('question-modal').classList.remove('open');
+            gameState.activeQuestion = null;
+        }
+
+        function handleAnswer(selectedIndex) {
+            const { team, index, data } = gameState.activeQuestion;
+            
+            if (selectedIndex === data.correct) {
+                // Correct
+                confetti({
+                    particleCount: 150,
+                    spread: 100,
+                    origin: { y: 0.6 },
+                    colors: ['#FFD700', '#FF69B4', '#00CED1', '#32CD32']
+                });
+
+                if (team === 'team1') gameState.team1Revealed.push(index);
+                else gameState.team2Revealed.push(index);
+
+                closeModal();
+                renderGrid(team);
+                checkWinner(team);
+
+            } else {
+                // Incorrect
+                let revealed = team === 'team1' ? gameState.team1Revealed : gameState.team2Revealed;
+                let message = "إجابة خاطئة! حاول مرة أخرى.";
+
+                if (revealed.length > 0) {
+                    // Penalty
+                    const randomIndex = Math.floor(Math.random() * revealed.length);
+                    revealed.splice(randomIndex, 1);
+                    message = "إجابة خاطئة! 😢 تم إعادة تغطية مربع كعقاب.";
+                }
+
+                closeModal();
+                setTimeout(() => alert(message), 300);
+                renderGrid(team);
+            }
+        }
+
+        function checkWinner(team) {
+            const revealed = team === 'team1' ? gameState.team1Revealed : gameState.team2Revealed;
+            if (revealed.length === 9) {
+                const winnerName = team === 'team1' ? gameState.team1Name : gameState.team2Name;
+                const colorClass = team === 'team1' ? 'text-blue-500' : 'text-pink-500';
+                
+                const winnerNameEl = document.getElementById('winner-name');
+                winnerNameEl.textContent = winnerName;
+                winnerNameEl.className = `text-6xl font-black mt-6 block ${colorClass}`;
+                
+                setTimeout(() => {
+                    document.getElementById('winner-modal').classList.add('open');
+                    confetti({ particleCount: 500, spread: 160, origin: { y: 0.6 } });
+                }, 500);
+            }
+        }
+
+        function resetGame() {
+            gameState.team1Revealed = [];
+            gameState.team2Revealed = [];
+            gameState.team1Name = '';
+            gameState.team2Name = '';
+            
+            document.getElementById('team1-input').value = '';
+            document.getElementById('team2-input').value = '';
+            
+            document.getElementById('winner-modal').classList.remove('open');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('flex');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
